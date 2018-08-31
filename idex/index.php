@@ -13,6 +13,7 @@
     //mengambil list exchange
     function getExchangeList()
     {
+        //untuk pengambilan list exchange tergantung pada api masing-masing, jadi tidak harus sama seperti ini
         $ticker = (array)json_decode(getData("https://api.idex.market/returnTicker"));
         $ticker = array_slice($ticker, 0,25);
         $exchangeList = array_keys($ticker);
@@ -71,6 +72,7 @@
         }
     }
 
+    //ini juga untuk long polling
     function runBot()
     {
         $updateId = 0;
