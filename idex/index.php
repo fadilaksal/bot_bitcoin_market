@@ -1,5 +1,5 @@
 <?php
-    define('TOKEN', '<token bot>');
+    define('TOKEN', '<token>');
     define('USERNAME', '<username>');
     // define('EXCHANGE_URL', 'http://localhost/bitcoin_market_exchange_list');
 
@@ -87,54 +87,58 @@
             $updateId = $message->update_id;
             $messageData = $message->message;
             if(isset($messageData)){
-                $chatId = $messageData->chat->id;
-                //jika bot baru ditambahkan di grup atau bot dikick dari grup
-                if((isset($messageData->new_chat_participant) && $messageData->new_chat_participant->username == USERNAME) || (isset($messageData->left_chat_participant) && $messageData->left_chat_participant->username == USERNAME)){
-                    $data = array(
-                        'chat_id' => $chatId,
-                        'text' => "🎁🎁🎁Terimakasih telah menambahkan idexbot \nketik /list untuk melihat exchange yang ada",
-                    );
-
-                    $response = sendRequest('sendMessage', $data);
-                }else{
-                    $chatId         = $messageData->chat->id;
-                    $messageId      = $messageData->message_id;
-                    $messageText    = $messageData->text;
-
-                    //memecah string, jika perintahnya ada @ nya, seperti bot yang ada digrup-grup
-                    $perintah = explode('@', $messageText);
-                    //nah ini jika perintahnya ada @ nya, maka jumlah array perintah akan > 1
-                    if(count($perintah) > 1){
-                        //jika @ setelah perintah usernamenya sama, maka memanggil method set_perintah
-                        if ($perintah[1] == USERNAME) {
-                            $hasil = setPerintah($perintah[0]);
-                        } else {
-                            $hasil = '';
-                        }
-                    } else {
-                        //jika tidak ada @ nya, maka langsung set_perintah
-                        $hasil = setPerintah($perintah[0]);
-                    }
-
-                    //jika hasilnya tidak kosong, maka akan diproses
-                    if($hasil != ''){
-                        //jika hasilnya lebih dari 4096(maksimal karakter untuk chat telegram), maka hasil akan dipotong
-                        if(strlen($hasil) > 4096){
-                            $hasil = substr($hasil, 0, 4096);
-                        }
-                        $data = array(
-                            'chat_id' => $chatId,
-                            'text' => $hasil
-                        );
-
-                        $response = sendRequest('sendMessage', $data);
-                    }
-                }
+                process_message($messageData);
             }
 
             //ubah isi dari file last_update_id dengan updateid yang terakhir
             file_put_contents('last_update_id', $updateId + 1);
             // return $response;
+        }
+    }
+
+    function process_message($messageData)
+    {
+        $chatId = $messageData->chat->id;
+        $messageId = $messageData->message_id;
+        //jika bot baru ditambahkan di grup atau bot dikick dari grup
+        if((isset($messageData->new_chat_participant) && $messageData->new_chat_participant->username == USERNAME) || (isset($messageData->left_chat_participant) && $messageData->left_chat_participant->username == USERNAME)){
+            $data = array(
+                'chat_id' => $chatId,
+                'text' => "🎁🎁🎁Terimakasih telah menambahkan idexbot \nketik /list untuk melihat exchange yang ada",
+            );
+
+            $response = sendRequest('sendMessage', $data);
+        }else{
+            $messageText    = $messageData->text;
+
+            //memecah string, jika perintahnya ada @ nya, seperti bot yang ada digrup-grup
+            $perintah = explode('@', $messageText);
+            //nah ini jika perintahnya ada @ nya, maka jumlah array perintah akan > 1
+            if(count($perintah) > 1){
+                //jika @ setelah perintah usernamenya sama, maka memanggil method set_perintah
+                if ($perintah[1] == USERNAME) {
+                    $hasil = setPerintah($perintah[0]);
+                } else {
+                    $hasil = '';
+                }
+            } else {
+                //jika tidak ada @ nya, maka langsung set_perintah
+                $hasil = setPerintah($perintah[0]);
+            }
+
+            //jika hasilnya tidak kosong, maka akan diproses
+            if($hasil != ''){
+                //jika hasilnya lebih dari 4096(maksimal karakter untuk chat telegram), maka hasil akan dipotong
+                if(strlen($hasil) > 4096){
+                    $hasil = substr($hasil, 0, 4096);
+                }
+                $data = array(
+                    'chat_id' => $chatId,
+                    'text' => $hasil
+                );
+
+                $response = sendRequest('sendMessage', $data);
+            }
         }
     }
 
@@ -149,24 +153,42 @@
                 return "🎁🎁🎁 IDEXBOT 🎁🎁🎁\nketik /list untuk melihat exchange yang ada";
                 break;
             default:
-                $perintah = str_replace("/","", $perintah);
+                $key = str_replace("/","", $perintah);
                 $ticker = (array)getExchangeData();
-                if(isset($ticker[$perintah])){
+                if(isset($ticker[$key])){
                     $returnMessage =  "IDEX EXCHANGE";
+                    $returnMessage .= "\n ☕ Market : " . $key;
                     $returnMessage .= "\n 🍏 High : " . $ticker[$perintah]->high ;
                     $returnMessage .= "\n 🍒 Low : " . $ticker[$perintah]->low;
                     $returnMessage .= "\n 🍍 Last Price : " . $ticker[$perintah]->last;
-                    $returnMessage .= "\n ☕ Market : " . $perintah;
                     return $returnMessage;
                 } else {
-                    return "Perintah tidak ditemukan, silahkan masukkan perintah yang lain 😁";
+                    return "Perintah tidak ditemukan, silahkan masukkan perintah yang lain 😁 $perintah";
                 }
                 break;
         }
     }
 
-    while (true) {
-        sleep(2);
-        runBot();
+    //method untuk long polling
+    //while (true) {
+        //sleep(2);
+        //runBot();
+    //}
+
+     //method untuk webhook
+    $entityBody = file_get_contents('php://input');
+    $request = json_decode($entityBody);
+    //print_r($request);
+    if(!$request){
+        echo "request error";
+    } elseif( !isset($request->update_id) || !isset($request->message) ) {
+        echo "tidak ada update_id";
     }
+    else
+    {
+        //print_r($request);
+        
+        process_message($request->message);
+    }
+     //print_r($pesanditerima);
 ?>
